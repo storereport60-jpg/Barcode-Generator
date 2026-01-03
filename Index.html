@@ -1,142 +1,154 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Generator Barcode</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-  </style>
-</head>
-
-<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
-
-  <div class="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-    <h1 class="text-3xl font-bold text-center mb-2">Generator Barcode</h1>
-    <p class="text-center text-slate-400 mb-6">
-      Masukkan teks atau angka untuk membuat barcode
-    </p>
-
-    <div class="space-y-4">
-      <!-- Input -->
-      <div>
-        <label class="block text-slate-300 mb-1">Teks / Angka</label>
-        <input
-          id="text-input"
-          type="text"
-          placeholder="Masukkan data di sini..."
-          class="w-full px-4 py-2 bg-slate-700 text-white border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500"
-        />
-      </div>
-
-      <!-- Format -->
-      <div>
-        <label class="block text-slate-300 mb-1">Format Barcode</label>
-        <select
-          id="format-select"
-          class="w-full px-4 py-2 bg-slate-700 text-white border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500"
-        >
-          <option value="CODE128">CODE 128</option>
-          <option value="CODE39">CODE 39</option>
-          <option value="EAN13">EAN-13 (13 digit angka)</option>
-          <option value="UPC">UPC (12 digit angka)</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Barcode -->
-    <div class="mt-8 p-4 bg-slate-700 rounded-lg flex justify-center">
-      <canvas
-        id="barcode-canvas"
-        width="400"
-        height="140"
-        class="bg-white rounded-lg"
-      ></canvas>
-    </div>
-
-    <!-- Download -->
-    <button
-      id="download-button"
-      class="mt-6 w-full px-6 py-3 font-bold bg-sky-600 rounded-xl hover:bg-sky-500 focus:ring-4 focus:ring-sky-500/50"
-    >
-      Unduh Barcode
-    </button>
-  </div>
+  <!-- jsPDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
   <!-- JsBarcode -->
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
-  <script>
-    const textInput = document.getElementById('text-input');
-    const formatSelect = document.getElementById('format-select');
-    const canvas = document.getElementById('barcode-canvas');
-    const downloadBtn = document.getElementById('download-button');
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+  </style>
+</head>
 
-    function clearCanvas(message = '') {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
 
-      if (message) {
-        ctx.fillStyle = 'red';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(message, canvas.width / 2, canvas.height / 2);
-      }
+  <main class="bg-slate-800 w-full max-w-lg p-8 rounded-2xl shadow-xl">
+    <h1 class="text-3xl font-bold text-center mb-2">Generator Barcode</h1>
+    <p class="text-center text-slate-400 mb-6">Buat & unduh barcode dalam format PNG atau PDF</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block mb-1 text-slate-300">Teks / Angka</label>
+        <input id="text-input" type="text" placeholder="Masukkan data..."
+          class="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 focus:ring-2 focus:ring-sky-500" />
+      </div>
+
+      <div>
+        <label class="block mb-1 text-slate-300">Format Barcode</label>
+        <select id="format-select"
+          class="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 focus:ring-2 focus:ring-sky-500">
+          <option value="CODE128">CODE 128</option>
+          <option value="CODE39">CODE 39</option>
+          <option value="EAN13">EAN-13 (13 digit)</option>
+          <option value="UPC">UPC (12 digit)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mt-8 bg-slate-700 p-4 rounded-lg flex justify-center">
+      <canvas id="barcode-canvas" width="400" height="140" class="bg-white rounded-lg"></canvas>
+    </div>
+
+    <div class="mt-6 grid grid-cols-2 gap-4">
+      <button id="download-png"
+        class="px-4 py-3 font-bold bg-sky-600 rounded-xl hover:bg-sky-500 disabled:opacity-50">
+        Unduh PNG
+      </button>
+      <button id="download-pdf"
+        class="px-4 py-3 font-bold bg-emerald-600 rounded-xl hover:bg-emerald-500 disabled:opacity-50">
+        Export PDF
+      </button>
+    </div>
+
+    <p id="error-text" class="text-center text-red-400 mt-4 hidden"></p>
+  </main>
+
+<script>
+  const textInput = document.getElementById('text-input');
+  const formatSelect = document.getElementById('format-select');
+  const canvas = document.getElementById('barcode-canvas');
+  const downloadPNG = document.getElementById('download-png');
+  const downloadPDF = document.getElementById('download-pdf');
+  const errorText = document.getElementById('error-text');
+
+  function setError(msg = '') {
+    errorText.textContent = msg;
+    errorText.classList.toggle('hidden', !msg);
+  }
+
+  function isValid(value, format) {
+    if (format === 'EAN13') return /^\d{13}$/.test(value);
+    if (format === 'UPC') return /^\d{12}$/.test(value);
+    return true;
+  }
+
+  function clearCanvas() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function generateBarcode() {
+    const value = textInput.value.trim();
+    const format = formatSelect.value;
+
+    clearCanvas();
+    setError('');
+
+    if (!value) {
+      downloadPNG.disabled = true;
+      downloadPDF.disabled = true;
+      return;
     }
 
-    function isValid(value, format) {
-      if (format === 'EAN13') return /^\d{13}$/.test(value);
-      if (format === 'UPC') return /^\d{12}$/.test(value);
-      return true;
+    if (!isValid(value, format)) {
+      setError('Input tidak sesuai format barcode');
+      downloadPNG.disabled = true;
+      downloadPDF.disabled = true;
+      return;
     }
 
-    function generateBarcode() {
-      const value = textInput.value.trim();
-      const format = formatSelect.value;
+    try {
+      JsBarcode(canvas, value, {
+        format,
+        displayValue: true,
+        fontSize: 16,
+        height: 80,
+        margin: 10
+      });
 
-      if (!value) {
-        clearCanvas();
-        return;
-      }
-
-      if (!isValid(value, format)) {
-        clearCanvas('Input tidak sesuai format');
-        return;
-      }
-
-      try {
-        JsBarcode(canvas, value, {
-          format,
-          displayValue: true,
-          fontSize: 16,
-          height: 80,
-          margin: 10
-        });
-      } catch {
-        clearCanvas('Gagal membuat barcode');
-      }
+      downloadPNG.disabled = false;
+      downloadPDF.disabled = false;
+    } catch {
+      setError('Gagal membuat barcode');
     }
+  }
 
-    function downloadBarcode() {
-      if (!textInput.value.trim()) return;
+  function downloadAsPNG() {
+    const safe = textInput.value.replace(/[^a-z0-9]/gi, '_');
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `barcode-${safe}.png`;
+    link.click();
+  }
 
-      const safeName = textInput.value.replace(/[^a-z0-9]/gi, '_');
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `barcode-${safeName}.png`;
-      link.click();
-    }
+  function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    const img = canvas.toDataURL('image/png');
 
-    textInput.addEventListener('input', generateBarcode);
-    formatSelect.addEventListener('change', generateBarcode);
-    downloadBtn.addEventListener('click', downloadBarcode);
-  </script>
+    pdf.setFontSize(16);
+    pdf.text('Barcode', 105, 20, { align: 'center' });
+    pdf.addImage(img, 'PNG', 30, 30, 150, 50);
+    pdf.save(`barcode-${textInput.value}.pdf`);
+  }
+
+  textInput.addEventListener('input', generateBarcode);
+  formatSelect.addEventListener('change', generateBarcode);
+  downloadPNG.addEventListener('click', downloadAsPNG);
+  downloadPDF.addEventListener('click', exportPDF);
+
+  downloadPNG.disabled = true;
+  downloadPDF.disabled = true;
+</script>
 
 </body>
 </html>
